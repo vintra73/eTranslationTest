@@ -5,7 +5,7 @@ Questa cartella contiene due componenti Python per l'[eTranslation REST API v2](
 | File | Descrizione |
 |---|---|
 | `etranslation_client.py` | Client per gli endpoint `/askTranslate`, `/getDomains` e `/status` |
-| `callback_server.py` | Server HTTP che riceve i callback `success`, `failure` e `delivery` |
+| `callback_server.py` | Server HTTP che riceve i callback di traduzione (testo o documenti) |
 | `callback_server.json` | Configurazione del server dei callback (host, porta, path) |
 | `config.example.json` | Modello del file con le credenziali del client |
 | `requirements.txt` | Dipendenze Python |
@@ -49,10 +49,8 @@ Impostazioni in [callback_server.json](callback_server.json):
 ```json
 {
   "host": "127.0.0.1",
-  "port": 8080,
-  "success_path": "/etranslation/success",
-  "failure_path": "/etranslation/failure",
-  "delivery_path": "/etranslation/delivery"
+  "port": 8000,
+  "callback_path": "/callback"
 }
 ```
 
@@ -60,7 +58,7 @@ Impostazioni in [callback_server.json](callback_server.json):
 |---|---|
 | `host` | Interfaccia di ascolto (`0.0.0.0` per accettare connessioni esterne) |
 | `port` | Porta di ascolto |
-| `success_path` / `failure_path` / `delivery_path` | Path dei tre callback. Devono iniziare con `/` e non essere uguali tra loro |
+| `callback_path` | Path dell'endpoint del callback (specificato in `APIspecification/callback.yaml`). Deve iniziare con `/` |
 
 Le chiavi sconosciute vengono rifiutate.
 
