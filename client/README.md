@@ -130,6 +130,49 @@ with ETranslationClient.from_config() as client:
     )
 ```
 
+### Glossario
+
+Il parametro `glossary` (disponibile in `translate_text` e `translate_document`) permette di indicare termini che non devono essere tradotti, o che devono essere tradotti in modo specifico per il progetto.
+
+Il glossario è una fonte file con la stessa struttura di `file` nella specifica: deve contenere esattamente una tra `ftp`, `sftp`, `http` o `document`. Il formato accettato è:
+
+- un file `xlsx` con due colonne
+- un file `tsv` senza intestazione
+
+Per un file locale usa `inline_document`:
+
+```python
+from etranslation_client import ETranslationClient, inline_document
+
+glossary_tsv = "turtle\tturtle\tturtle\tturtle\nRDF\tRDF\tRDF\tRDF\n"
+
+with ETranslationClient.from_config() as client:
+    request_id = client.translate_document(
+        source_language="IT",
+        target_languages=["EN", "FR"],
+        document=inline_document(open("documento.docx", "rb").read(), "docx", "documento"),
+        glossary=inline_document(glossary_tsv.encode("utf-8"), "tsv", "glossario"),
+        notifications={
+            "success": {"http": "https://mio-host/etranslation/success"},
+            "failure": {"http": "https://mio-host/etranslation/failure"},
+        },
+        deliveries={"http": "https://mio-host/etranslation/delivery"},
+    )
+```
+
+Se il glossario è già disponibile su un server, usa una fonte remota:
+
+```python
+glossary={"http": {"url": "https://mio-host/glossario.tsv", "format": "tsv", "method": "GET"}}
+# oppure
+glossary={"ftp": "ftp://server/percorso/glossario.xlsx"}
+```
+
+Note:
+
+- Il glossario non è compatibile con l'LLM: se `llm` è attivo insieme al glossario, il servizio restituisce `GLOSSARY_AND_USE_LLM_MUTUALLY_EXCLUSIVE` (errore `-10419`). Il client non blocca questa combinazione, quindi l'errore arriva come `ETranslationError`.
+- Il glossario è valido anche per le traduzioni di testo. In quel caso va passato a `translate_text` con la stessa struttura.
+
 ### Errori
 
 - Errori di validazione lato client (lingua non valida, testo troppo lungo, notifiche malformate): `ValueError`, senza chiamare il servizio.
