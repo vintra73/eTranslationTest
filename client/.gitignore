@@ -1,2 +1,6 @@
+# Ignore configuration files
 config.json
+callback_server.json
+
+# Python cache directories
 __pycache__/
