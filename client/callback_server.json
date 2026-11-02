@@ -1,0 +1,7 @@
+{
+  "host": "127.0.0.1",
+  "port": 8000,
+  "success_path": "/etranslation/success",
+  "failure_path": "/etranslation/failure",
+  "delivery_path": "/etranslation/delivery"
+}
