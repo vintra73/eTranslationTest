@@ -1,0 +1,484 @@
+openapi: 3.0.0
+info:
+  title: eTranslation API
+  description: eTranslation API is an asynchronous translation service. Clients can submit text or document translation requests with multiple options and delivery methods. After submitting a request, the client immediately receives a request ID. Each translated result is delivered individually to the client’s specified delivery destinations. Clients are responsible for handling callbacks and performing any necessary post-processing. eTranslation API also allows retrieving available language pairs and checking the system status.
+  version: 2.0.0
+servers:
+  - url: https://language-tools.ec.europa.eu/etranslation/api/askTranslate
+    description: PROD
+
+security:
+  - basicAuth: []
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: HTTP Basic authentication using base64(application:password). The application name and password are provided by the eTranslation team.
+
+  schemas:
+    callerInformation:
+      type: 'object'
+      nullable: true
+      description: Optional client-defined information about the caller of the request.
+      properties:
+        externalReference:
+          type: 'string'
+          maxLength: 200
+          description: Client-defined reference for the request. Returned as-is in callbacks so the client can correlate responses with the original request.
+        institution:
+          type: 'string'
+          maxLength: 100
+          example: eu.europa.ec
+          description: Name of the institution issuing the request. Must be in the format eu.europa.***.
+        departmentNumber:
+          type: 'string'
+          maxLength: 100
+          description: Department number of the connected user.
+        username:
+          type: 'string'
+          maxLength: 10
+          description: Name specified by the client system for its user.
+      additionalProperties: false
+
+    fileBase64:
+      type: 'object'
+      description: A file provided inline as a Base64-encoded string.
+      properties:
+        content:
+          type: 'string'
+          nullable: false
+          minLength: 1
+          description: The file content encoded as a Base64 string.
+        format:
+          type: 'string'
+          nullable: false
+          minLength: 1
+          description: The format (extension) of the file, e.g. txt, docx, pdf.
+        filename:
+          type: 'string'
+          minLength: 1
+          description: The file name without extension for the translated output.
+
+      required: ['content', 'format']
+      additionalProperties: false
+
+    fileHttp:
+      type: 'object'
+      description: A file referenced by a remote HTTP(S) URL.
+      properties:
+        url:
+          type: 'string'
+          nullable: false
+          format: 'http'
+          description: URL that returns the file content in the response body.
+        format:
+          type: 'string'
+          nullable: false
+          description: The format (extension) of the file, e.g. txt, docx, pdf.
+        method:
+          type: 'string'
+          enum: ['GET', 'POST']
+          description: HTTP method used to fetch the file. Defaults to POST.
+      required: ['url', 'format']
+      additionalProperties: false
+
+    file:
+      type: 'object'
+      nullable: true
+      description: A file provided through exactly one of the supported sources (ftp, sftp, http or inline base64 document).
+      properties:
+        ftp:
+          type: 'string'
+          format: 'ftp'
+          description: FTP path to the file.
+        sftp:
+          type: 'string'
+          format: 'sftp'
+          description: SFTP path to the file.
+        http:
+          $ref: '#/components/schemas/fileHttp'
+        document:
+          $ref: '#/components/schemas/fileBase64'
+
+      oneOf:
+        [
+          { required: ['ftp'], 'not': { 'anyOf': [{ 'required': ['http'] }, { 'required': ['sftp'] }, { 'required': ['document'] }] } },
+          { required: ['sftp'], 'not': { 'anyOf': [{ 'required': ['http'] }, { 'required': ['ftp'] }, { 'required': ['document'] }] } },
+          { required: ['http'], 'not': { 'anyOf': [{ 'required': ['ftp'] }, { 'required': ['sftp'] }, { 'required': ['document'] }] } },
+          { required: ['document'], 'not': { 'anyOf': [{ 'required': ['ftp'] }, { 'required': ['sftp'] }, { 'required': ['http'] }] } }
+        ]
+      additionalProperties: false
+
+    notifications:
+      type: 'object'
+      nullable: true
+      description: Endpoints to notify upon job completion status.
+      properties:
+        success:
+          allOf:
+            - $ref: '#/components/schemas/notification'
+            - description: Endpoint notified when the translation completes successfully.
+        failure:
+          allOf:
+            - $ref: '#/components/schemas/notification'
+            - description: Endpoint notified when the translation fails.
+      additionalProperties: false
+
+    notification:
+      type: 'object'
+      description: A single notification endpoint reachable through exactly one protocol (http, ftp or sftp).
+      properties:
+        http:
+          type: 'string'
+          format: 'http'
+          description: HTTP(S) URL called with the notification payload as JSON.
+        ftp:
+          type: 'string'
+          format: 'ftp'
+          description: FTP address where a JSON notification file is written.
+        sftp:
+          type: 'string'
+          format: 'sftp'
+          description: SFTP address where a JSON notification file is written.
+      oneOf: [{ required: ['ftp'] }, { required: ['sftp'] }, { required: ['http'] }]
+      additionalProperties: false
+
+    deliveries:
+      type: 'object'
+      description: Destinations where the translated output is delivered. At least one protocol must be provided.
+      properties:
+        http:
+          type: 'string'
+          format: 'http'
+          description: HTTP(S) URL that receives the translated output as JSON.
+        ftp:
+          type: 'string'
+          format: 'ftp'
+          description: FTP address where the translated output is delivered.
+        sftp:
+          type: 'string'
+          format: 'sftp'
+          description: SFTP address where the translated output is delivered.
+      anyOf: [{ required: ['ftp'] }, { required: ['sftp'] }, { required: ['http'] }]
+      additionalProperties: false
+
+    llm:
+      type: 'object'
+      nullable: true
+      description: Controls whether LLM-enhanced (AI-powered) translation is applied to the request. If omitted, the account's default LLM configuration is used.
+      properties:
+        enabled:
+          type: 'boolean'
+          description: Activates or deactivates LLM enhancement.
+        model:
+          type: 'string'
+          nullable: true
+          default: model1
+          description: LLM model to use. If not specified, the default model (model1) is used, unless overridden by the account configuration.
+          enum:
+            - model1
+            - model2
+            - model3
+        docn:
+          type: 'array'
+          items:
+            type: 'string'
+          example: ['COM(2023)068']
+          description: A list of document reference numbers (e.g. COM(2023)068) to attach to a translation request.
+      required: ['enabled']
+      additionalProperties: false
+
+paths:
+  /askTranslate:
+    post:
+      summary: Request a translation
+      description: Submit a translation request with document or text-snippet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                callerInformation:
+                  allOf:
+                    - $ref: '#/components/schemas/callerInformation'
+                    - description: Optional client-defined information about the caller.
+                textToTranslate:
+                  type: string
+                  minLength: 1
+                  maxLength: 5000
+                  description: The text snippet to translate. Maximum 5000 characters. Mutually exclusive with documentToTranslate.
+                documentToTranslate:
+                  allOf:
+                    - $ref: '#/components/schemas/file'
+                    - description: The document to translate. Mutually exclusive with textToTranslate.
+                glossary:
+                  allOf:
+                    - $ref: '#/components/schemas/file'
+                    - description: Optional glossary of terms specific to the translation project (xlsx with two columns or a headerless tsv file).
+                sourceLanguage:
+                  type: string
+                  example: EN
+                  description: Source language as a two-letter uppercase ISO 639-1 code. Use "LD" to request automatic language detection.
+                targetLanguages:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                  example: ['FR', 'DE']
+                  description: Target languages as two-letter uppercase ISO 639-1 codes.
+                domain:
+                  type: string
+                  example: GEN
+                  description: Domain of the engine to use. Defaults to GEN (General text).
+                withQualityEstimate:
+                  type: boolean
+                  description: Returns an Excel file with source segment, target segment and a quality estimate per segment. Available only for certain engines and domains, and not for text snippets.
+                preserveTags:
+                  type: boolean
+                  description: Applicable only when outputFormat is tmx. When true, inline formatting tags (bold, italic) are preserved in the translated segment; otherwise the segment contains plain text only.
+                addDisclaimer:
+                  type: boolean
+                  description: Applicable only for .pdf and .docx documents. When true, a disclaimer stating that the document was generated by the eTranslation machine is added to the output document.
+                llm:
+                  $ref: '#/components/schemas/llm'
+                outputFormat:
+                  type: string
+                  example: docx
+                  description: Desired format of the translated output (same accepted values as the document format, excluding sdlxliff). Defaults to the input document format.
+                notifications:
+                  allOf:
+                    - $ref: '#/components/schemas/notifications'
+                    - description: Endpoints to notify upon job completion. Required for document translation; for text snippets the translated text is returned through the success notification.
+                deliveries:
+                  allOf:
+                    - $ref: '#/components/schemas/deliveries'
+                    - description: Destinations where the translated output is delivered. Required for document translation (the result is a file); optional for text snippets.
+              required:
+                - sourceLanguage
+                - targetLanguages
+              oneOf:
+                - required:
+                    - textToTranslate
+                - required:
+                    - documentToTranslate
+
+      responses:
+        '200':
+          description: Translation request accepted successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId:
+                    type: number
+                    description: Unique identifier for the translation request.
+        '400':
+          description: >
+            Bad request due to invalid input. The response contains a negative errorCode and an errorMessage.
+            Error families:
+            caller information (-10001 to -10014),
+            deliveries (-10104 to -10110),
+            documentToTranslate (-10201 to -10223),
+            domain (-10301, -10302),
+            glossary (-10401 to -10423),
+            llm (-10500 LLM_NOT_ALLOWED, -10518 LLM_INVALID_MODEL, -10419 GLOSSARY_AND_USE_LLM_MUTUALLY_EXCLUSIVE),
+            notifications (-10501 to -10517),
+            output & tags (-10601 to -10606),
+            language (-10701 to -10709),
+            textToTranslate (-10801 to -10804),
+            docn (-10900 DOCN_WRONG_TYPE, -10905 DOCN_TOO_MANY),
+            quality estimation (-10901 to -10904),
+            file issues (-11001 to -11020),
+            format specific (-11101 to -11103),
+            quotas (-11200 QUOTA_EXCEEDED).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  errorCode:
+                    type: integer
+                    description: Negative error code
+                    example: -10704
+                  errorMessage:
+                    type: string
+                    description: Error message
+                    example: SOURCE_LANGUAGE_MISSING
+        '500':
+          description: Internal server error.
+      callbacks:
+        success-notification:
+          '{$request.body#/notifications/success/http}':
+            post:
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        requestId:
+                          type: number
+                          example: 123
+                          description: The request ID returned by the initial request.
+                        sourceLanguage:
+                          type: string
+                          example: EN
+                          description: Source language of the original text or document.
+                        targetLanguage:
+                          type: string
+                          example: FR
+                          description: Target language of this translated result.
+                        externalReference:
+                          type: string
+                          example: caller-ext-ref
+                          description: External reference provided in the initial request, if any.
+                        translatedText:
+                          type: string
+                          example: translated text (only in case of text-snippet request)
+                          description: The translated text, present only for text-snippet requests.
+              responses:
+                '200':
+                  description: Caller server must return 200
+        failure-notification:
+          '{$request.body#/notifications/failure/http}':
+            post:
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        requestId:
+                          type: number
+                          example: 123
+                          description: The request ID returned by the initial request.
+                        targetLanguages:
+                          type: array
+                          items:
+                            type: string
+                          example: [DE, FR]
+                          description: Target languages of the failed translation process.
+                        externalReference:
+                          type: string
+                          example: caller-ext-ref
+                          description: External reference provided in the initial request, if any.
+                        errorCode:
+                          type: number
+                          example: -30000
+                          description: Negative error code returned by the eTranslation service.
+                        errorMessage:
+                          type: string
+                          example: Cannot convert input file
+                          description: Human-readable description of the error.
+              responses:
+                '200':
+                  description: Caller server must return 200
+        delivery:
+          '{$request.body#/deliveries/http}':
+            post:
+              requestBody:
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      type: object
+                      properties:
+                        requestId:
+                          type: number
+                          example: 123
+                          description: The request ID returned by the initial request.
+                        sourceLanguage:
+                          type: string
+                          example: EN
+                          description: Source language of the original text or document.
+                        targetLanguage:
+                          type: string
+                          example: FR
+                          description: Target language of this delivered result.
+                        externalReference:
+                          type: string
+                          example: caller-ext-ref
+                          description: External reference provided in the initial request, if any.
+                        outputFormat:
+                          type: string
+                          example: docx
+                          description: Format of the delivered output.
+                        result:
+                          type: string
+                          example: 'BASE64encodedTranslation'
+                          description: The translated text, or the translated file as a Base64-encoded string.
+
+              responses:
+                '200':
+                  description: Caller server must return 200
+
+  /getDomains:
+    get:
+      summary: Get language pairs
+      description: Returns a JSON object containing language pairs.
+      responses:
+        '200':
+          description: A JSON object containing language pairs
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    languagePairs:
+                      type: array
+                      items:
+                        type: string
+                      example:
+                        - 'BG-CS'
+                      description: Supported source-target language pairs for the domain. A pair with the LLM suffix indicates AI-based enhancement is available for that pair.
+              example: [{ 'domain': 'GEN', 'languagePairs': ['BG-CS', ....] }, { 'domain': 'SPD', 'languagePairs': ['BG-CS', ....] }]
+  /status:
+    get:
+      summary: Get the current status of eTranslation system
+      description: Provide an overview of the eTranslation system status
+      responses:
+        '200':
+          description: A JSON object containing status information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  level:
+                    type: integer
+                    example: 0
+                    description: System load level. 0 = Normal service, 1 = Heavy load, 2 = Critical load (expect delays), 3 = Blocked.
+                  message:
+                    type: string
+                    example: Normal service
+                    description: Human-readable description of the current system status.
+              examples:
+                normal:
+                  summary: Normal service
+                  value:
+                    level: 0
+                    message: Normal service
+                heavy:
+                  summary: Heavy load
+                  value:
+                    level: 1
+                    message: Heavy load
+                critical:
+                  summary: Critical load (expect delays)
+                  value:
+                    level: 2
+                    message: Critical load (expect delays)
+                blocked:
+                  summary: Blocked
+                  value:
+                    level: 3
+                    message: Blocked
