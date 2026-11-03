@@ -16,6 +16,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 # Add the 'implementation' folder to sys.path so we can import the client
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -54,6 +55,12 @@ def find_config_path(cli_path: str | None) -> Path | None:
     if local_config.is_file():
         return local_config
 
+    # Check sibling test configs
+    for sibling in ("test00", "test02", "test03"):
+        sib_config = CURRENT_DIR.parent / sibling / "config.json"
+        if sib_config.is_file():
+            return sib_config
+
     # Check config.json in implementation/
     impl_config = IMPLEMENTATION_DIR / "config.json"
     if impl_config.is_file():
@@ -89,7 +96,6 @@ def build_glossary_source(glossary_path: Path) -> dict[str, Any]:
         raise FileNotFoundError(f"Glossary file not found: {glossary_path}")
 
     raw_bytes = glossary_path.read_bytes()
-    # format must match supported extension (tsv or xlsx)
     fmt = glossary_path.suffix.lstrip(".").lower() or "tsv"
     return inline_document(raw_bytes, fmt, filename=glossary_path.name)
 
@@ -149,7 +155,6 @@ def main() -> None:
     print(f"Target languages  : {args.targets}")
     print(f"Glossary file     : {args.glossary}")
 
-    # Read glossary
     glossary_source = build_glossary_source(args.glossary)
     glossary_raw = base64.b64decode(glossary_source["document"]["content"]).decode("utf-8", errors="replace")
     print(f"Glossary content  :\n---\n{glossary_raw.strip()}\n---")
@@ -176,7 +181,6 @@ def main() -> None:
         print("\nDry run completed successfully.")
         return
 
-    # Check credentials
     creds = get_credentials(args.config)
     if not creds:
         print("\n[!] No credentials found.", file=sys.stderr)

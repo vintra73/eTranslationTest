@@ -44,10 +44,8 @@ class TestETranslationGlossary(unittest.TestCase):
         lines = [line.split("\t") for line in content.splitlines() if line.strip()]
 
         self.assertGreaterEqual(len(lines), 1, "Glossary must have at least one line")
-        # Find turtle row
         turtle_row = next((row for row in lines if row[0] == "turtle"), None)
         self.assertIsNotNone(turtle_row, "Glossary should contain a row starting with 'turtle'")
-        # Ensure it has mappings for at least 3 columns (IT, EN, DE)
         self.assertGreaterEqual(len(turtle_row), 3, "Glossary row must have entries for IT, EN, and DE")
         self.assertEqual(turtle_row[0], "turtle")  # IT
         self.assertEqual(turtle_row[1], "turtle")  # EN
@@ -63,7 +61,6 @@ class TestETranslationGlossary(unittest.TestCase):
         self.assertEqual(doc["format"], "tsv")
         self.assertEqual(doc["filename"], "glossary.tsv")
 
-        # Decode base64 to ensure it matches original content
         decoded = base64.b64decode(doc["content"]).decode("utf-8")
         self.assertIn("turtle\tturtle\tturtle", decoded)
 
@@ -88,12 +85,10 @@ class TestETranslationGlossary(unittest.TestCase):
         self.assertEqual(req_id, 12345678)
         mock_request.assert_called_once()
 
-        # Check call arguments
         method, url = mock_request.call_args[0]
         self.assertEqual(method, "POST")
         self.assertEqual(url, f"{DEFAULT_BASE_URL}/askTranslate")
 
-        # Check JSON payload sent
         body = mock_request.call_args[1]["json"]
         self.assertEqual(body["textToTranslate"], self.text)
         self.assertEqual(body["sourceLanguage"], "IT")

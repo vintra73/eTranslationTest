@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Test script to invoke eTranslation API v2 using the implementation client (Test 02).
+"""Test script to invoke eTranslation API v2 using the implementation client.
 
 Request specification:
-- Text: "Validator of turtle files (.ttl)" (English translation of "Turtle (.ttl) file validator")
-- Source language: EN (English)
-- Target languages: IT, DE (Italian, German)
-- Glossary: TSV containing the term "turtle" from EN to IT and DE
+- Text: "Validatore dei file turtle (.ttl)"
+- Source language: IT (Italian)
+- Target languages: EN, DE (English, German)
+- Glossary: TSV containing the term "turtle" preserved across IT -> EN, DE
 """
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
 
 # Add the 'implementation' folder to sys.path so we can import the client
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -36,9 +35,9 @@ try:
 except ImportError as exc:
     sys.exit(f"Error importing etranslation_client from {IMPLEMENTATION_DIR}: {exc}")
 
-DEFAULT_TEXT = "Validator of turtle files (.ttl)"
-DEFAULT_SOURCE = "EN"
-DEFAULT_TARGETS = ["IT", "DE"]
+DEFAULT_TEXT = "Validatore dei file turtle (.ttl)"
+DEFAULT_SOURCE = "IT"
+DEFAULT_TARGETS = ["EN", "DE"]
 DEFAULT_GLOSSARY_PATH = CURRENT_DIR / "glossary.tsv"
 
 
@@ -50,15 +49,10 @@ def find_config_path(cli_path: str | None) -> Path | None:
             return p
         raise FileNotFoundError(f"Config file not found at: {cli_path}")
 
-    # Check local config.json in test02
+    # Check local config.json in test01
     local_config = CURRENT_DIR / "config.json"
     if local_config.is_file():
         return local_config
-
-    # Check config.json in test01
-    test01_config = CURRENT_DIR.parent / "test01" / "config.json"
-    if test01_config.is_file():
-        return test01_config
 
     # Check config.json in implementation/
     impl_config = IMPLEMENTATION_DIR / "config.json"
@@ -95,13 +89,14 @@ def build_glossary_source(glossary_path: Path) -> dict[str, Any]:
         raise FileNotFoundError(f"Glossary file not found: {glossary_path}")
 
     raw_bytes = glossary_path.read_bytes()
+    # format must match supported extension (tsv or xlsx)
     fmt = glossary_path.suffix.lstrip(".").lower() or "tsv"
     return inline_document(raw_bytes, fmt, filename=glossary_path.name)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run test02: eTranslation API call with English text and EN -> IT, DE glossary."
+        description="Run test01: eTranslation API call with text and glossary."
     )
     parser.add_argument(
         "--config",
@@ -147,7 +142,7 @@ def main() -> None:
     args = parser.parse_args()
 
     print("=" * 70)
-    print("eTranslation Test 02 - English Text Translation with EN -> IT, DE Glossary")
+    print("eTranslation Test 01 - Text Translation with Glossary")
     print("=" * 70)
     print(f"Text to translate : {args.text}")
     print(f"Source language   : {args.source}")

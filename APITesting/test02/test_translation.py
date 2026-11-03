@@ -1,10 +1,6 @@
-"""Unit and integration test suite for eTranslation API call with glossary (Test 02).
+"""Unit and integration test suite for eTranslation API call with glossary (Test 01).
 
 Tests the request composition, glossary handling, and client integration based on:
-- Text: "Validator of turtle files (.ttl)" (English translation of "Turtle (.ttl) file validator")
-- Source language: EN
-- Target languages: IT, DE
-- Glossary: TSV containing "turtle" from EN to IT, DE
 - API specification: APIspecification/eTranslation-RestV2.yaml
 - Client implementation: implementation/etranslation_client.py
 """
@@ -34,26 +30,28 @@ from etranslation_client import (  # type: ignore[import-not-found]
 )
 
 
-class TestETranslationGlossaryENtoITDE(unittest.TestCase):
+class TestETranslationGlossary(unittest.TestCase):
     def setUp(self) -> None:
         self.glossary_path = TEST_DIR / "glossary.tsv"
-        self.text = "Validator of turtle files (.ttl)"
-        self.source_language = "EN"
-        self.target_languages = ["IT", "DE"]
+        self.text = "Validatore dei file turtle (.ttl)"
+        self.source_language = "IT"
+        self.target_languages = ["EN", "DE"]
 
     def test_glossary_file_exists_and_content(self) -> None:
-        """Verify that the glossary file exists and maps 'turtle' from EN to IT and DE."""
+        """Verify that the glossary file exists and contains 'turtle' for IT, EN, and DE."""
         self.assertTrue(self.glossary_path.is_file(), f"Missing {self.glossary_path}")
         content = self.glossary_path.read_text(encoding="utf-8").strip()
         lines = [line.split("\t") for line in content.splitlines() if line.strip()]
 
         self.assertGreaterEqual(len(lines), 1, "Glossary must have at least one line")
+        # Find turtle row
         turtle_row = next((row for row in lines if row[0] == "turtle"), None)
         self.assertIsNotNone(turtle_row, "Glossary should contain a row starting with 'turtle'")
-        self.assertGreaterEqual(len(turtle_row), 3, "Glossary row must have entries for EN (source), IT, and DE")
-        self.assertEqual(turtle_row[0], "turtle")  # Source EN
-        self.assertEqual(turtle_row[1], "turtle")  # Target IT
-        self.assertEqual(turtle_row[2], "turtle")  # Target DE
+        # Ensure it has mappings for at least 3 columns (IT, EN, DE)
+        self.assertGreaterEqual(len(turtle_row), 3, "Glossary row must have entries for IT, EN, and DE")
+        self.assertEqual(turtle_row[0], "turtle")  # IT
+        self.assertEqual(turtle_row[1], "turtle")  # EN
+        self.assertEqual(turtle_row[2], "turtle")  # DE
 
     def test_glossary_inline_document_structure(self) -> None:
         """Verify the inline_document Base64 encoding and format metadata."""
@@ -65,6 +63,7 @@ class TestETranslationGlossaryENtoITDE(unittest.TestCase):
         self.assertEqual(doc["format"], "tsv")
         self.assertEqual(doc["filename"], "glossary.tsv")
 
+        # Decode base64 to ensure it matches original content
         decoded = base64.b64decode(doc["content"]).decode("utf-8")
         self.assertIn("turtle\tturtle\tturtle", decoded)
 
@@ -73,7 +72,7 @@ class TestETranslationGlossaryENtoITDE(unittest.TestCase):
         """Verify that ETranslationClient.translate_text constructs the exact expected JSON body."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"requestId": 87654321}
+        mock_response.json.return_value = {"requestId": 12345678}
         mock_request.return_value = mock_response
 
         glossary_source = inline_document(self.glossary_path.read_bytes(), "tsv", filename="glossary.tsv")
@@ -86,17 +85,19 @@ class TestETranslationGlossaryENtoITDE(unittest.TestCase):
             glossary=glossary_source,
         )
 
-        self.assertEqual(req_id, 87654321)
+        self.assertEqual(req_id, 12345678)
         mock_request.assert_called_once()
 
+        # Check call arguments
         method, url = mock_request.call_args[0]
         self.assertEqual(method, "POST")
         self.assertEqual(url, f"{DEFAULT_BASE_URL}/askTranslate")
 
+        # Check JSON payload sent
         body = mock_request.call_args[1]["json"]
         self.assertEqual(body["textToTranslate"], self.text)
-        self.assertEqual(body["sourceLanguage"], "EN")
-        self.assertEqual(body["targetLanguages"], ["IT", "DE"])
+        self.assertEqual(body["sourceLanguage"], "IT")
+        self.assertEqual(body["targetLanguages"], ["EN", "DE"])
         self.assertEqual(body["glossary"], glossary_source)
 
     @patch("requests.Session.request")
@@ -105,8 +106,8 @@ class TestETranslationGlossaryENtoITDE(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.status_code = 400
         mock_response.json.return_value = {
-            "errorCode": -10421,
-            "errorMessage": "GLOSSARY_NOT_SUPPORTED_FOR_LANGUAGE_PAIR_DOMAIN",
+            "errorCode": -10418,
+            "errorMessage": "GLOSSARY_NOT_SUPPORTED_WITH_SNIPPET",
         }
         mock_request.return_value = mock_response
 
@@ -121,8 +122,8 @@ class TestETranslationGlossaryENtoITDE(unittest.TestCase):
                 glossary=glossary_source,
             )
 
-        self.assertEqual(ctx.exception.error_code, -10421)
-        self.assertIn("GLOSSARY_NOT_SUPPORTED_FOR_LANGUAGE_PAIR_DOMAIN", ctx.exception.error_message)
+        self.assertEqual(ctx.exception.error_code, -10418)
+        self.assertIn("GLOSSARY_NOT_SUPPORTED_WITH_SNIPPET", ctx.exception.error_message)
 
 
 if __name__ == "__main__":
